@@ -1,0 +1,67 @@
+# config contains 3 parts 1. metadata 2. specification 3. status
+# status part is automatically generate by kubernetes when configuratin file is applied
+# status helps kubernetes compare two states and if not matches update it to newer state
+# imagine you apply config file, change replicate from 2 to 3 and reapply. now kubernetes can use status to achieve the desired state
+apiVersion: apps/v1
+# configuration file is for deployment- similarly we can create config files for services then type will be changed here
+kind: Deployment
+metadata:
+# name of the deployment
+  name: mongodb-deployment
+  labels:
+    app: mongodb
+
+spec:
+#number of replicas of deployment
+  replicas: 1
+  # selector here is devinec as mongodb now whichever file with metdata/labels/app = mongodb it will select that eg. with selector service knows to which deployment it shall connect to
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+        # latest as label
+          image: mongo:latest
+          # image configuration . seee config for mongo on docker hub 
+          ports:
+          # by default mongodb container runs at port 27017
+            - containerPort: 27017
+            # mongo image needs two environment variables, root user and root password
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              # value: write value here directly
+              valueFrom:
+                secretKeyRef:
+                # after applying secret file. use kubectl get secret to know the name of the pushed secret to cluster
+                  name: mongodb-secret
+                  # value which we want to fetch from secret is fetched with the help of key defined in secret file
+                  key: mongo-root-username
+
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              # value: password
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: mongo-root-password
+# three dash is used for document separation in yaml
+# it is good to write deployment and its acssociated service in same file
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+spec:
+# here mongodb is written as selector. now kubernetes will see deployment with metadata label = mongodb and will associate this service to it
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+    # service needs its own port to running. so it is defined here. we can use same port
+      port: 27017
+      # on which port service shall make request. this shall match with the container port defined in deployment
+      targetPort: 27017
